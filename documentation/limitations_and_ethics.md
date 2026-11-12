@@ -19,7 +19,12 @@
 - **Ambiguous emotions**: Many real-world expressions are blends of multiple emotions. A single-label prediction does not capture this nuance.
 - **No face-detection fallback**: If the uploaded image does not contain a clear frontal face, predictions will be unreliable.
 
-### 3. Performance Limitations
+### 3. Performance & Construct Validity Limitations
+- **Facial expressions do not reliably establish internal emotional states**:
+  - A CNN trained on FER-2013 classifies **visible facial muscle configurations (surface expressions)**, *not* a person's true internal feelings, intentions, or psychological state.
+  - People frequently mask, suppress, or exaggerate expressions due to social norms, cultural display rules, fatigue, pain, or neurodivergence, and identical facial movements can occur across different emotional contexts.
+  - Consequently, outputs from this system must be treated strictly as **noisy visual expression estimates**, never as ground-truth evidence of internal emotion or mental state.
+- **Observed class disparities in baseline evaluation**: On `PrivateTest` (overall accuracy `60.96%`), the baseline model performs strongly on visually distinct expressions such as *Happy* (F1 `0.8436`) and *Surprise* (F1 `0.7366`), but struggles on subtle or overlapping expressions such as *Fear* (F1 `0.3144`, recall `0.2462`) and *Sad* (F1 `0.4252`, recall `0.3754`).
 - **Accuracy ceiling**: State-of-the-art on FER-2013 is ~73–75%. Human inter-rater agreement on this dataset is also imperfect (~65%).
 - **Reported results are experiment-specific**: Numbers reported in this project reflect actual training runs and should not be extrapolated to other contexts.
 

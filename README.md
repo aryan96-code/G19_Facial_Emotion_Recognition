@@ -91,18 +91,41 @@ pip install -r requirements.txt
 ```
 
 ### 4. Add the dataset
-- Download **FER-2013** from [Kaggle](https://www.kaggle.com/datasets/msambare/fer2013).
-- Place `fer2013.csv` (or the extracted `train/` and `test/` folders) inside the `dataset/` directory.
+- Download the **FER-2013** CSV (`fer2013.csv` containing `emotion`, `pixels`, and `Usage` columns) from Kaggle (e.g., [deadskull7/fer2013](https://www.kaggle.com/datasets/deadskull7/fer2013)).
+- Place `fer2013.csv` inside `dataset/fer2013.csv` so the exact original splits (`Training`: 28,709, `PublicTest`: 3,589, `PrivateTest`: 3,589) are preserved.
 - The `dataset/` folder is listed in `.gitignore` — **do not commit the data**.
 
 ### 5. Run the Colab notebooks (training)
-Open each notebook in `notebooks/` sequentially in Google Colab.  
-After training, download the saved model file to `models/`.
+Open each notebook in `notebooks/` sequentially in Google Colab (T4 GPU).  
+After training, download `best_model.keras` (or `best_model_drive.keras`) from Google Drive into `models/best_model.keras`.
 
 ### 6. Run the Streamlit app (local demo)
 ```bash
 streamlit run app/streamlit_app.py
 ```
+
+---
+
+## 📊 Baseline Performance (`PrivateTest`, 3,589 images)
+
+Trained on Google Colab using `Training` (28,709) and `PublicTest` (3,589) with **CLAHE disabled**, Adam (`lr=1e-3`), batch size `64`, `40` epochs (best epoch: `40`), and training-only class weights:
+
+| Metric | Value |
+|---|---|
+| Training Accuracy / Loss | 58.68% / 1.0505 |
+| Validation Accuracy / Loss (`PublicTest`) | 58.46% / 1.0914 |
+| **Test Accuracy (`PrivateTest`)** | **60.96%** |
+| Macro Precision / Recall / F1 | 0.5897 / 0.5905 / 0.5771 |
+| Weighted F1 | 0.5948 |
+
+Full per-class metrics are stored in [`results/private_test_classification_report.csv`](results/private_test_classification_report.csv).
+
+### Reproducibility Details
+- **Random seed**: `42` (`set_random_seeds(42)` in `src/utils.py`)
+- **Dataset splits**: Original FER-2013 `Usage` column (`Training` / `PublicTest` / `PrivateTest`)
+- **Class weights**: Balanced weights computed strictly from `Training` labels (`y_train`)
+- **Baseline preprocessing**: Greyscale 48×48, `[0, 1]` normalisation, `USE_CLAHE = False`
+- **Unit tests**: `pytest tests/ -v` (verified on Python 3.12 with `requirements.txt`)
 
 ---
 

@@ -58,7 +58,7 @@ Input (48 × 48 × 1)
 | Initial LR | 1e-3 | Standard Adam default |
 | Loss | Sparse Categorical Cross-Entropy | Multi-class classification |
 | Batch size | 64 | Balance of GPU memory and gradient stability |
-| Max epochs | 100 | With early stopping |
+| Max epochs | 40 | With `EarlyStopping(patience=10, restore_best_weights=True)` |
 | Early stopping | patience=10 | Prevent overfitting |
 | LR scheduler | ReduceLROnPlateau (factor=0.5, patience=5) | Fine-tune convergence |
 
@@ -73,6 +73,47 @@ Input (48 × 48 × 1)
 ## 8. Inference Pipeline
 1. Capture / upload image.
 2. Detect face region (optional: OpenCV Haar cascade).
-3. Apply `preprocess_image()` from `src/preprocessing.py`.
+3. Apply `preprocess_image(image, use_clahe=False)` from `src/preprocessing.py` (matching baseline training).
 4. Pass through loaded model.
 5. Return top prediction and softmax probabilities.
+
+---
+
+## 9. Baseline Experimental Results (Actual Run — No CLAHE)
+
+### Training & Validation (`Training` = 28,709 | `PublicTest` = 3,589)
+| Setting / Metric | Observed Value |
+|---|---|
+| Architecture | 3-block CNN (`src/model.py`) |
+| Preprocessing | Greyscale 48×48, `[0, 1]` normalisation, **no CLAHE** |
+| Batch size | 64 |
+| Epochs completed | 40 / 40 |
+| Best epoch (by `val_loss`) | 40 |
+| Training accuracy | **58.68%** |
+| Validation accuracy (`PublicTest`) | **58.46%** |
+| Training loss | **1.0505** |
+| Validation loss (`PublicTest`) | **1.0914** |
+
+> Training and validation metrics remain closely aligned (0.22% accuracy gap at epoch 40), indicating no severe overfitting under training-only augmentation and dropout regularisation.
+
+### Final Held-Out Evaluation (`PrivateTest` = 3,589)
+Saved in `results/private_test_classification_report.csv`:
+
+| Metric | Value |
+|---|---|
+| **Test Accuracy** | **60.96%** |
+| Macro Precision | 0.5897 |
+| Macro Recall | 0.5905 |
+| Macro F1 | 0.5771 |
+| Weighted F1 | 0.5948 |
+
+#### Per-Class Breakdown (`PrivateTest`)
+| Emotion | Precision | Recall | F1-score | Support |
+|---|---:|---:|---:|---:|
+| Angry | 0.6196 | 0.4644 | 0.5308 | 491 |
+| Disgust | 0.5789 | 0.6000 | 0.5893 | 55 |
+| Fear | 0.4348 | 0.2462 | 0.3144 | 528 |
+| Happy | 0.8499 | 0.8373 | 0.8436 | 879 |
+| Sad | 0.4901 | 0.3754 | 0.4252 | 594 |
+| Surprise | 0.6754 | 0.8101 | 0.7366 | 416 |
+| Neutral | 0.4794 | 0.8003 | 0.5996 | 626 |
