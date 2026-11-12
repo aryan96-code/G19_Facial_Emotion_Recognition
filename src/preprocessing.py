@@ -122,6 +122,38 @@ def build_augmentation_layer():
     return augmentation
 
 
+def build_refined_augmentation_layer():
+    """
+    Build the refined Keras Sequential augmentation pipeline for Experiment 02.
+
+    Applied ONLY during training (training=True) and disabled during validation
+    and inference.
+
+    Augmentations
+    -------------
+    - Random horizontal flip   : 50% probability
+    - Random rotation (±7°)    : 7 / 360 ≈ 0.0194
+    - Random zoom (±10%)       : height_factor=0.10
+    - Random translation (±8%) : height_factor=0.08, width_factor=0.08
+    - Random brightness (±15%) : value_range=(0.0, 1.0) for [0, 1] inputs
+    - Random contrast (±15%)   : factor=0.15
+    """
+    from tensorflow import keras
+
+    augmentation = keras.Sequential(
+        [
+            keras.layers.RandomFlip("horizontal"),
+            keras.layers.RandomRotation(factor=7.0 / 360.0),
+            keras.layers.RandomZoom(height_factor=0.10),
+            keras.layers.RandomTranslation(height_factor=0.08, width_factor=0.08),
+            keras.layers.RandomBrightness(factor=0.15, value_range=(0.0, 1.0)),
+            keras.layers.RandomContrast(factor=0.15, value_range=(0.0, 1.0)),
+        ],
+        name="refined_data_augmentation",
+    )
+    return augmentation
+
+
 # ---------------------------------------------------------------------------
 # Batch preprocessing (for offline augmentation if preferred)
 # ---------------------------------------------------------------------------
