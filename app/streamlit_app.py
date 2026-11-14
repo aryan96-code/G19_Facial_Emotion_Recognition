@@ -11,7 +11,8 @@ How to run:
     streamlit run app/streamlit_app.py
 
 Requirements:
-    - A trained model file must exist in models/best_model.keras
+    - A trained model file must exist in models/exp02_02E_headB_baseline_full_cw.keras
+      (or fallback models/best_model.keras)
     - Run from the project root (G19_Facial_Emotion_Recognition/)
 
 Note:
@@ -36,6 +37,7 @@ import streamlit as st
 from src.preprocessing import preprocess_image
 from src.utils import load_model_safe
 from src.data_loader import EMOTION_LABELS
+from src.face_detector import detect_and_crop_primary_face
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +64,26 @@ EMOTION_CONFIG = {
     "Neutral"  : {"emoji": "😐", "color": "#808080"},
 }
 
-MODEL_PATH = PROJECT_ROOT / "models" / "best_model.keras"
+PRIMARY_MODEL_PATH = (
+    PROJECT_ROOT / "models" / "exp02_02E_headB_baseline_full_cw.keras"
+)
+FALLBACK_MODEL_PATH = PROJECT_ROOT / "models" / "best_model.keras"
+
+
+def get_active_model_path() -> Path | None:
+    """
+    Resolve model path with priority:
+    1. Primary: Experiment 02-E Head B model (exp02_02E_headB_baseline_full_cw.keras)
+    2. Fallback: Baseline model (best_model.keras)
+    """
+    if PRIMARY_MODEL_PATH.exists():
+        return PRIMARY_MODEL_PATH
+    if FALLBACK_MODEL_PATH.exists():
+        return FALLBACK_MODEL_PATH
+    return None
+
+
+MODEL_PATH = get_active_model_path() or PRIMARY_MODEL_PATH
 
 # ---------------------------------------------------------------------------
 # Load model (cached across Streamlit reruns)
@@ -71,7 +92,13 @@ MODEL_PATH = PROJECT_ROOT / "models" / "best_model.keras"
 @st.cache_resource(show_spinner="Loading model weights …")
 def get_model():
     """Load the trained Keras model once and cache it in memory."""
-    return load_model_safe(str(MODEL_PATH))
+    active_path = get_active_model_path()
+    if active_path is None:
+        raise FileNotFoundError(
+            f"No valid model file found. Expected primary model at '{PRIMARY_MODEL_PATH}' "
+            f"or fallback model at '{FALLBACK_MODEL_PATH}'."
+        )
+    return load_model_safe(str(active_path))
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +154,9 @@ def main():
         **FER-2013** dataset to classify facial expressions into one of seven
         emotion categories.
 
+        **Selected Model:** Experiment 02-E Head B (Four-block CNN with
+        Global Average Pooling + Global Max Pooling + Concatenation).
+
         **Emotion classes:**
         - 😠 Angry
         - 🤢 Disgust
@@ -143,15 +173,27 @@ def main():
         value=False,
         help="Enable only if the loaded model was trained with the optional CLAHE experiment.",
     )
-    st.sidebar.caption("Model: Custom CNN trained on FER-2013")
+
+    active_path = get_active_model_path()
+    if active_path == PRIMARY_MODEL_PATH:
+        st.sidebar.caption(
+            "Model: Selected Experiment 02-E Head B (`exp02_02E_headB_baseline_full_cw.keras`)"
+        )
+    elif active_path == FALLBACK_MODEL_PATH:
+        st.sidebar.caption(
+            "Model: Fallback Baseline (`best_model.keras`)"
+        )
+    else:
+        st.sidebar.caption("Model: Experiment 02-E Head B (not loaded)")
 
     # --- Model status check ---
-    if not MODEL_PATH.exists():
+    if active_path is None:
         st.error(
             "⚠️ **Model file not found.**\n\n"
-            f"Expected at: `{MODEL_PATH}`\n\n"
-            "Please train the model using notebook `04_cnn_training.ipynb` and "
-            "save the weights to `models/best_model.keras`."
+            f"Expected primary model: `{PRIMARY_MODEL_PATH.name}`\n"
+            f"Expected fallback model: `{FALLBACK_MODEL_PATH.name}`\n\n"
+            f"Please place `{PRIMARY_MODEL_PATH.name}` (or `{FALLBACK_MODEL_PATH.name}`) "
+            "inside the `models/` directory."
         )
         st.stop()
 
@@ -168,7 +210,7 @@ def main():
     # -- Upload mode --
     if input_method == "📂 Upload an image":
         uploaded_file = st.file_uploader(
-            "Upload a face image (JPG / PNG / JPEG)",
+            "Upload an image containing a face (JPG / PNG / JPEG)",
             type=["jpg", "jpeg", "png"],
         )
         if uploaded_file is not None:
@@ -178,12 +220,6 @@ def main():
 
             if image_array is None:
                 st.error("Could not decode the uploaded file. Please try a different image.")
-            else:
-                st.image(
-                    cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB),
-                    caption="Uploaded image",
-                    width=250,
-                )
 
     # -- Webcam mode --
     else:
@@ -194,12 +230,66 @@ def main():
             file_bytes  = np.frombuffer(webcam_image.read(), np.uint8)
             image_array = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-    # --- Run prediction ---
+            if image_array is None:
+                st.error("Could not decode webcam capture. Please try again.")
+
+    # --- Face Detection & Prediction ---
     if image_array is not None:
         st.divider()
+        st.subheader("Face Detection & Emotion Analysis")
+
+        detection_result = detect_and_crop_primary_face(image_array)
+
+        # Handle environment or classifier failure gracefully
+        if detection_result.error_message:
+            st.error(
+                f"⚠️ **Face detection unavailable:** {detection_result.error_message}\n\n"
+                "Please verify that OpenCV is installed properly (`opencv-python>=4.8.0,<5.0.0`)."
+            )
+            st.stop()
+
+        # Display annotated image with bounding boxes
+        col_img, col_crop = st.columns(2)
+        with col_img:
+            st.image(
+                cv2.cvtColor(detection_result.annotated_image, cv2.COLOR_BGR2RGB),
+                caption="Detected Faces (Green: Primary, Blue: Secondary)",
+                use_container_width=True,
+            )
+
+        # Halt if no face was detected
+        if not detection_result.detected or detection_result.cropped_face is None:
+            st.warning(
+                "⚠️ **No face detected in the image.**\n\n"
+                "The emotion classifier requires a clearly visible frontal face. "
+                "Please upload or capture a clearer, well-lit frontal face photo."
+            )
+            st.stop()
+
+        # Display cropped primary face
+        with col_crop:
+            st.image(
+                cv2.cvtColor(detection_result.cropped_face, cv2.COLOR_BGR2RGB)
+                if detection_result.cropped_face.ndim == 3
+                else detection_result.cropped_face,
+                caption=f"Cropped Primary Face ({detection_result.cropped_face.shape[1]}×{detection_result.cropped_face.shape[0]})",
+                width=160,
+            )
+
+        # Inform user if multiple faces detected
+        if detection_result.num_faces > 1:
+            st.info(
+                f"ℹ️ **Multiple faces detected ({detection_result.num_faces}).** "
+                "Analyzing the primary (largest) face highlighted with the green bounding box."
+            )
+
+        # Run inference strictly on the cropped face
         with st.spinner("Analysing emotion …"):
             try:
-                label, confidence, probs = predict_emotion(image_array, use_clahe=use_clahe)
+                label, confidence, probs = predict_emotion(
+                    detection_result.cropped_face,
+                    use_clahe=use_clahe,
+                )
             except Exception as exc:
                 st.error(f"Prediction failed: {exc}")
                 st.stop()

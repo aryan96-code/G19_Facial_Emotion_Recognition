@@ -1,0 +1,10 @@
+# Streamlit project-level configuration
+# CSE276 Group 19 — Facial Emotion Recognition
+
+[server]
+headless = true
+showEmailPrompt = false
+port = 8501
+
+[browser]
+gatherUsageStats = false

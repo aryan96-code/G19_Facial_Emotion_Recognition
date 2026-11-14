@@ -1,65 +1,100 @@
-# Limitations and Ethics
+# Limitations and Ethical Considerations
 ## G19 — Facial Emotion Recognition | CSE276
+### Submission Deadline: 25 November 2026
 
 ---
 
-## ⚠️ Limitations
+## ⚠️ 1. Dataset Limitations (FER-2013)
 
-### 1. Dataset Limitations
-- **Class imbalance**: The *Disgust* class (~600 samples) is severely under-represented compared to *Happy* (~9,000 samples). The model may exhibit lower recall for minority classes.
-- **Greyscale only**: FER-2013 images are 48 × 48 greyscale. Colour and texture cues that humans use to read emotions are not available.
-- **Low resolution**: The small image size limits the fine-grained feature detail the model can capture.
-- **Wild images**: FER-2013 was collected from internet images with variable pose, occlusion, and illumination — this is realistic but noisy.
-- **Age and demographic distribution**: The dataset does not document its demographic composition, so the model's performance across different ethnicities, ages, and genders is unknown.
+### Severe Class Imbalance
+The FER-2013 dataset exhibits severe class imbalance across its 35,887 samples:
+- In the training set (28,709 images), **Happy** accounts for 7,215 samples (25.1%), while **Disgust** accounts for only 436 samples (1.5%) — a ratio exceeding $16:1$.
+- In the private test set (3,589 images), *Disgust* contains only 55 samples compared to 879 for *Happy*.
+- Although balanced class weighting was incorporated during model training ($N / (C \cdot N_c)$), minority classes naturally possess fewer distinct feature representations, leading to higher performance variance.
 
-### 2. Model Limitations
-- **Static images only**: Our model predicts from a single frame; it ignores temporal dynamics of expression that humans rely on.
-- **Single-face assumption**: The pipeline expects one face per image. Multi-face scenes are not handled.
-- **Generalisation**: A model trained on FER-2013 may not generalise well to real-world camera feeds with different resolutions, compression artefacts, or lighting conditions.
-- **Ambiguous emotions**: Many real-world expressions are blends of multiple emotions. A single-label prediction does not capture this nuance.
-- **No face-detection fallback**: If the uploaded image does not contain a clear frontal face, predictions will be unreliable.
+### Resolution & Information Loss
+- All images are constrained to $48 \times 48$ single-channel greyscale.
+- Critical physiological cues that humans rely on to assess emotion — such as flushing, blushing, skin pallor, micro-expression dynamics, and fine eye-wrinkle textures — are completely absent in 48-pixel greyscale representations.
 
-### 3. Performance & Construct Validity Limitations
-- **Facial expressions do not reliably establish internal emotional states**:
-  - A CNN trained on FER-2013 classifies **visible facial muscle configurations (surface expressions)**, *not* a person's true internal feelings, intentions, or psychological state.
-  - People frequently mask, suppress, or exaggerate expressions due to social norms, cultural display rules, fatigue, pain, or neurodivergence, and identical facial movements can occur across different emotional contexts.
-  - Consequently, outputs from this system must be treated strictly as **noisy visual expression estimates**, never as ground-truth evidence of internal emotion or mental state.
-- **Observed class disparities in baseline evaluation**: On `PrivateTest` (overall accuracy `60.96%`), the baseline model performs strongly on visually distinct expressions such as *Happy* (F1 `0.8436`) and *Surprise* (F1 `0.7366`), but struggles on subtle or overlapping expressions such as *Fear* (F1 `0.3144`, recall `0.2462`) and *Sad* (F1 `0.4252`, recall `0.3754`).
-- **Accuracy ceiling**: State-of-the-art on FER-2013 is ~73–75%. Human inter-rater agreement on this dataset is also imperfect (~65%).
-- **Reported results are experiment-specific**: Numbers reported in this project reflect actual training runs and should not be extrapolated to other contexts.
+### Noise in Web-Scraped Data
+- FER-2013 was assembled via automated Google Image searches using emotion-related query keywords.
+- Consequently, the dataset contains notable label noise, cartoon drawings, partial occlusions, watermarks, non-face artifacts, and ambiguous expressions where human labeler agreement is estimated at only ~65%.
+
+### Demographic Representation & Fairness
+- FER-2013 lacks demographic metadata regarding ethnicity, age, cultural background, or gender.
+- Machine learning models trained on uncurated internet datasets historically risk disproportionately lower accuracy on under-represented ethnic groups, older populations, and individuals with physical facial atypicalities.
 
 ---
 
-## ⚖️ Ethical Considerations
+## 📷 2. Benchmark vs. Real-World Webcam Discrepancy
 
-### Informed Consent
-Emotion recognition systems should **never** be deployed on individuals without their knowledge and explicit consent. This demo is strictly an academic tool and must not be used for covert surveillance.
+There is a substantial domain shift between controlled benchmark evaluation and real-world webcam deployment:
 
-### Bias and Fairness
-Given the unknown demographic composition of FER-2013:
-- Performance gaps across racial groups, genders, or age groups are likely.
-- Deployment in high-stakes contexts (hiring, law enforcement, healthcare) would be inappropriate without rigorous bias auditing.
-
-### Misuse Potential
-Facial emotion recognition has documented potential for misuse:
-- **Workplace surveillance**: Monitoring employee emotional states.
-- **Discriminatory profiling**: Using expressions as proxies for protected characteristics.
-- **Political suppression**: Identifying emotional reactions at protests.
-
-This project does **not** endorse any such use cases.
-
-### Data Privacy
-- No images used in this project are collected from users without consent.
-- The Streamlit demo processes images **locally** — no image is uploaded to any external server.
-- Uploaded images are not stored or logged.
-
-### Academic Honesty
-All results in this project are obtained from actual training experiments.
-No accuracy numbers, plots, or screenshots are fabricated or borrowed from other projects.
+| Dimension | FER-2013 Benchmark Environment | Real-World Webcam / Upload Feed |
+|:---|:---|:---|
+| **Cropping** | Pre-cropped, centered, tight face boundaries | Unconstrained scenes with arbitrary head positions and sizes |
+| **Head Pose** | Primarily frontal or near-frontal | Frequent pitch, yaw, and roll (head tilt and turning) |
+| **Illumination** | Post-processed, balanced contrast | Extreme backlighting, harsh shadows, low-light webcam sensors |
+| **Motion & Noise** | Clean static images | Motion blur, sensor noise, webcam compression artifacts |
+| **Aspect Ratio** | Fixed square $48 \times 48$ | Variable camera aspect ratios (16:9, 4:3) requiring dynamic scaling |
 
 ---
 
-## 📌 Responsible Use Statement
-> This system is built for educational purposes only.
-> It is not production-ready and should not be used for any real-world decision-making
-> without extensive validation, bias auditing, and appropriate ethical oversight.
+## 🔍 3. Face Detection Pipeline Limitations (Haar Cascade)
+
+The integrated real-time detection module (`src/face_detector.py`) utilizes OpenCV's classical frontal face Haar Cascade (`haarcascade_frontalface_default.xml`):
+
+### Operating Constraints
+- **Frontal Bias:** The Haar Cascade relies on handcrafted rectangular features (light-dark intensity transitions around the bridge of the nose and eye sockets). It performs reliably only on frontal or near-frontal faces ($\pm 15^\circ$ rotation).
+- **Occlusions:** Masks, thick-framed glasses, hands covering the chin or mouth, or heavy bangs can degrade detection rates significantly.
+- **Lighting Sensitivity:** Low-contrast or unevenly lit faces (e.g., strong side lighting) may prevent the cascade from identifying face candidate rectangles.
+
+### Safety Safeguards Implemented
+- The application **strictly refuses to run emotion inference** if no face is detected (`detected == False`).
+- Rather than silently classifying random background patterns or furniture textures, the application halts execution with a user-facing warning:
+  `⚠️ No face detected in the image. Please upload or capture a clearer, well-lit frontal face photo.`
+- When multiple faces are present, the system explicitly selects the **primary face** by maximum bounding box area ($w \times h$), highlights it in green (with secondary faces in blue), and notifies the user.
+
+---
+
+## 🧠 4. Fundamental Construct Validity: Expressions vs. Internal States
+
+> ### **CRITICAL SCIENTIFIC PRINCIPLE**
+> **Facial expressions cannot reliably establish internal emotional states.**
+
+A Convolutional Neural Network trained on FER-2013 classifies **visible surface facial muscle movements (facial configurations)**, *not* a person's genuine internal feelings, intentions, subjective psychological state, or character.
+
+### Psychological & Social Realities
+1. **Emotional Concealment & Social Display Rules:**
+   Humans routinely mask, suppress, exaggerate, or simulate expressions in response to professional norms, cultural conventions, or politeness (e.g., smiling when anxious or frustrated).
+2. **Context Dependency:**
+   Identical facial movements can communicate vastly different mental states depending on context (e.g., tears during joy versus grief; widened eyes in excitement versus mortal terror).
+3. **Neurodivergence & Physical Variance:**
+   Individuals with Parkinson's disease, Bell's palsy, stroke recovery, autism, or natural resting facial traits may present facial configurations that commercial or academic FER algorithms misclassify as "Angry", "Sad", or "Neutral".
+4. **No Direct Physiological Mapping:**
+   Contemporary affective science (e.g., Barrett et al., 2019) conclusively demonstrates that there is no one-to-one biological correspondence between six or seven discrete emotional categories and specific facial muscle movements.
+
+---
+
+## ⚖️ 5. Ethical Guidelines & Prohibited Use Cases
+
+### Explicitly Prohibited Applications
+The model and code in this repository were developed strictly as an academic research project for CSE276. **They must never be deployed or utilized in any of the following high-stakes contexts:**
+
+- ❌ **Mental Health Diagnosis:** Must not be used to diagnose depression, anxiety, trauma, or emotional blunting.
+- ❌ **Workplace & Employee Surveillance:** Must not be used to monitor worker attention, satisfaction, morale, or productivity.
+- ❌ **Employment & Hiring Decisions:** Must not be used to evaluate video interviews, candidate suitability, or honesty.
+- ❌ **Law Enforcement & Border Control:** Must not be used for lie detection, interrogation, threat assessment, or suspicious behavior scoring.
+- ❌ **Credit, Insurance, or Housing Decisions:** Must not be used to assess creditworthiness, risk profiles, or tenant selection.
+- ❌ **Classroom Proctoring & Grading:** Must not be used to penalize students based on detected "boredom" or "inattention."
+
+### Privacy & Data Protection
+- **Local Execution:** The Streamlit demo operates completely locally. No webcam captures or uploaded photos are transmitted to external servers, cloud storage, or third-party APIs.
+- **No Persistent Storage:** Uploaded and webcam images are held temporarily in volatile memory for inference and are discarded immediately.
+- **Informed Consent:** Automated facial recognition should never be performed on individuals without their explicit, informed consent.
+
+---
+
+## 📌 Academic Integrity & Responsible Use Statement
+
+> This project is designed exclusively for educational and research demonstration purposes. It highlights both the technical possibilities of deep convolutional networks and the profound limitations of automated expression classification. Group 19 disclaims any liability for unauthorized or unethical application of this software.

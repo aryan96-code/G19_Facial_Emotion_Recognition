@@ -11,10 +11,15 @@ models/*.h5
 models/*.keras
 models/*.pb
 !models/.gitkeep
+!models/exp02_02E_headB_baseline_full_cw.keras
 
 # --- Results (generated during experiments) ---
-results/
+results/*
 !results/.gitkeep
+!results/exp02_02E_headB_classification_report.csv
+!results/exp02_02E_headB_confusion_matrix.csv
+!results/exp02_02E_headB_confusion_matrix.png
+!results/exp02_02E_headB_final_metrics.json
 
 # --- Python virtual environment ---
 venv/
